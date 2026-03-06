@@ -1,9 +1,9 @@
 const GEMINI_API_KEYS = [
-    'AIzaSyCYeFANOqztafI6zzXlXPpogL2ah75bxZo',
-    'AIzaSyCDi43ZqaOu-vMeBCnw1hlId_xC-SV2sGI',
-    'AIzaSyAkO2eDqrwvvN8m93z-o0rKgkEG12UHMyU',
-    'AIzaSyChtI0ZUNUKKsyJVb52AchU_qTuhrEGPH4'
-];
+    process.env.GEMINI_API_KEY_1,
+    process.env.GEMINI_API_KEY_2,
+    process.env.GEMINI_API_KEY_3,
+    process.env.GEMINI_API_KEY_4
+].filter(Boolean);
 
 const MODELS = [
     'gemini-2.5-flash',
