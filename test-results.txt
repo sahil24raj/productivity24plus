@@ -1,0 +1,30 @@
+
+
+=== TESTING KEY 1 (AIzaSyB059...) ===
+
+Testing model: gemini-2.5-flash with Key 1
+FAILED for gemini-2.5-flash: HTTP 400
+Message: API Key not found. Please pass a valid API key.
+
+Testing model: gemini-2.0-flash with Key 1
+FAILED for gemini-2.0-flash: HTTP 400
+Message: API Key not found. Please pass a valid API key.
+
+Testing model: gemini-1.5-flash with Key 1
+FAILED for gemini-1.5-flash: HTTP 400
+Message: API Key not found. Please pass a valid API key.
+
+
+=== TESTING KEY 2 (AIzaSyC0vB...) ===
+
+Testing model: gemini-2.5-flash with Key 2
+FAILED for gemini-2.5-flash: HTTP 400
+Message: API Key not found. Please pass a valid API key.
+
+Testing model: gemini-2.0-flash with Key 2
+FAILED for gemini-2.0-flash: HTTP 400
+Message: API Key not found. Please pass a valid API key.
+
+Testing model: gemini-1.5-flash with Key 2
+FAILED for gemini-1.5-flash: HTTP 400
+Message: API Key not found. Please pass a valid API key.
