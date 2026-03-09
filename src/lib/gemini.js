@@ -1,52 +1,94 @@
-const GEMINI_API_KEYS = [
-    process.env.GEMINI_API_KEY_1,
-    process.env.GEMINI_API_KEY_2,
-    process.env.GEMINI_API_KEY_3,
-    process.env.GEMINI_API_KEY_4
+const GROK_KEYS = [
+    process.env.GROK_API_KEY_1,
+    process.env.GROK_API_KEY_2,
+    process.env.GROK_API_KEY
 ].filter(Boolean);
 
-const MODELS = [
-    'gemini-2.5-flash',
-    'gemini-2.0-flash',
-    'gemini-2.0-flash-lite',
-    'gemini-2.5-flash-lite',
-    'gemini-3-flash-preview',
-];
+const GEMINI_KEYS = [
+    process.env.GEMINI_API_KEY_3,
+    process.env.GEMINI_API_KEY_4,
+    process.env.GEMINI_API_KEY_1,
+    process.env.GEMINI_API_KEY_2,
+    process.env.GEMINI_API_KEY
+].filter(Boolean);
 
-let currentKeyIndex = 0;
+const MODEL_CONFIGS = [];
+
+// Push Grok configurations first (Highest Priority)
+GROK_KEYS.forEach(key => {
+    ['grok-2-latest'].forEach(model => {
+        MODEL_CONFIGS.push({ provider: 'grok', key, model });
+    });
+});
+
+// Push Gemini configurations next (Fallback)
+GEMINI_KEYS.forEach(key => {
+    ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'].forEach(model => {
+        MODEL_CONFIGS.push({ provider: 'gemini', key, model });
+    });
+});
+
+let currentConfigIndex = 0;
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
- * Try calling Gemini API with automatic model fallback on quota errors.
+ * Try calling AI APIs with automatic provider/model fallback.
+ * Cycles from Grok -> Gemini transparently on quota errors.
  */
-async function callWithRetry(prompt, retries = 3) {
+async function callWithRetry(prompt, retries = 2) {
+    if (MODEL_CONFIGS.length === 0) {
+        throw new Error("No API keys configured");
+    }
+
     let lastError = '';
+    // Enforce delay for rate limits
+    await delay(1500 + Math.random() * 500);
 
-    // Enforce a 1.5s delay before every API call to rate-spread out of 15 Requests Per Minute
-    await delay(1500 + Math.random() * 500); // 1.5s - 2.0s jitter
+    for (let i = 0; i < MODEL_CONFIGS.length; i++) {
+        const indexToUse = (currentConfigIndex + i) % MODEL_CONFIGS.length;
+        const config = MODEL_CONFIGS[indexToUse];
 
-    for (let i = 0; i < GEMINI_API_KEYS.length; i++) {
-        // Round-robin start from the globally tracked index
-        const indexToUse = (currentKeyIndex + i) % GEMINI_API_KEYS.length;
-        const key = GEMINI_API_KEYS[indexToUse];
+        for (let attempt = 0; attempt < retries; attempt++) {
+            try {
+                if (config.provider === 'grok') {
+                    const res = await fetch('https://api.x.ai/v1/chat/completions', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${config.key}`
+                        },
+                        body: JSON.stringify({
+                            messages: [
+                                { role: 'system', content: 'You are an API that returns ONLY raw valid JSON text without markdown formatting or code blocks. Never wrap output in ```json or ```.' },
+                                { role: 'user', content: prompt }
+                            ],
+                            model: config.model,
+                            temperature: 0.7,
+                        })
+                    });
 
-        let keyDepleted = false;
+                    if (res.ok) {
+                        const data = await res.json();
+                        return data.choices?.[0]?.message?.content || '';
+                    }
 
-        for (const model of MODELS) {
-            if (keyDepleted) break; // Skip evaluating other models if this key is completely rate limited
+                    const errData = await res.json().catch(() => ({}));
+                    lastError = errData?.error?.message || `Grok HTTP ${res.status}`;
 
-            for (let attempt = 0; attempt < retries; attempt++) {
-                try {
-                    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
+                    console.warn(`[Grok Fallback] Error: ${lastError}. Switching to next API key/model...`);
+                    if (res.status === 429 || res.status === 401 || res.status === 403) {
+                        currentConfigIndex = (currentConfigIndex + 1) % MODEL_CONFIGS.length;
+                        break; // Move to next config immediately for rate limits / bad keys
+                    }
+
+                } else if (config.provider === 'gemini') {
+                    const url = `https://generativelanguage.googleapis.com/v1beta/models/${config.model}:generateContent?key=${config.key}`;
                     const res = await fetch(url, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             contents: [{ parts: [{ text: prompt }] }],
-                            generationConfig: {
-                                temperature: 0.7,
-                                maxOutputTokens: 4096,
-                            },
+                            generationConfig: { temperature: 0.7, maxOutputTokens: 4096 },
                         }),
                     });
 
@@ -55,48 +97,24 @@ async function callWithRetry(prompt, retries = 3) {
                         return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
                     }
 
-                    const code = res.status;
-                    let errorData = {};
-                    try {
-                        errorData = await res.json();
-                    } catch (e) {
-                        // ignore JSON parse error on bad status
+                    const errData = await res.json().catch(() => ({}));
+                    lastError = errData?.error?.message || `Gemini HTTP ${res.status}`;
+
+                    console.warn(`[Gemini Fallback] Error: ${lastError}. Switching to next API key/model...`);
+                    if (res.status === 429 || res.status === 400 || res.status === 403) {
+                        currentConfigIndex = (currentConfigIndex + 1) % MODEL_CONFIGS.length;
+                        break; // Move to next config immediately for rate limits / bad keys
                     }
-
-                    lastError = errorData?.error?.message || `HTTP ${code}`;
-
-                    // 429 Quota Exceeded -> This entire API KEY has exhausted its limit.
-                    // Switching models won't help. We must switch to the next KEY.
-                    if (code === 429 || lastError.toLowerCase().includes('quota') || lastError.toLowerCase().includes('busy') || lastError.toLowerCase().includes('too many requests')) {
-                        console.warn(`[Gemini Fallback] Quota exceeded on key ending in ...${key.slice(-4)}. Switching to next API key immediately...`);
-                        currentKeyIndex = (currentKeyIndex + 1) % GEMINI_API_KEYS.length;
-                        keyDepleted = true;
-                        break; // break attempt loop -> then breaks model loop
-                    }
-
-                    // 500/503 -> Server error, retry the exact same model & key after a delay
-                    if (code >= 500) {
-                        const delay = Math.pow(2, attempt) * 1000;
-                        await new Promise(r => setTimeout(r, delay));
-                        continue;
-                    }
-
-                    // 400/404 -> Model not found or unavailable in your region. Try the NEXT MODEL on this same key.
-                    console.warn(`[Gemini Fallback] Model ${model} failed (${lastError}). Trying next model...`);
-                    break; // break attempt loop -> continues to next model
-
-                } catch (err) {
-                    if (err.message && !err.message.includes('HTTP')) {
-                        lastError = err.message;
-                    }
-                    console.warn(`[Gemini Fallback] Network error for ${model}. Trying next model...`);
-                    break; // Skip to next model
                 }
+            } catch (err) {
+                lastError = err.message;
+                console.warn(`[Network Fallback] ${config.provider} failed: ${lastError}`);
+                break; // Skip to next config on network issues
             }
         }
     }
 
-    throw new Error(`All AI models and API keys are currently busy. Please wait a minute and try again. Latest Error: ${lastError}`);
+    throw new Error(`All AI models and API keys are currently busy. Latest Error: ${lastError}`);
 }
 
 /**
@@ -176,8 +194,24 @@ Rules:
 - overallScore = how future-proof the resume is (0-100)
 - Be honest and realistic with percentages`;
 
-    const response = await callWithRetry(prompt);
-    return extractJSON(response);
+    try {
+        const response = await callWithRetry(prompt);
+        return extractJSON(response);
+    } catch (e) {
+        console.warn('[Fallback] AI Resume Analysis failed, using static fallback.', e);
+        return {
+            skills: [
+                { name: "General Software Concepts", category: "Other", demandLevel: "medium", survivalPercentage: 70, futureOutlook: "Stable requirement for all roles", isFoundInResume: true }
+            ],
+            overallScore: 65,
+            summary: "AI services are currently busy, returning a basic fallback analysis. Please maintain your focus on high-demand skills like AI/ML and Cloud technologies.",
+            strengths: ["Foundational Experience"],
+            gaps: ["Advanced Agentic AI Tooling", "Cloud-native Architecture"],
+            trendingSkillsToLearn: [
+                { name: "Generative AI Integration", reason: "Highest industry demand in 2025/2026", survivalPercentage: 95, difficulty: "intermediate", timeToLearn: "2-3 months" }
+            ]
+        };
+    }
 }
 
 /**
@@ -214,8 +248,31 @@ Rules:
 - Include a practical project for each phase
 - Make it actionable and realistic`;
 
-    const response = await callWithRetry(prompt);
-    return extractJSON(response);
+    try {
+        const response = await callWithRetry(prompt);
+        return extractJSON(response);
+    } catch (e) {
+        console.warn('[Fallback] AI Skill Roadmap failed, using static fallback.', e);
+        return {
+            skill: skillName,
+            totalDuration: "3-4 months",
+            phases: [
+                {
+                    phase: 1,
+                    title: "Fundamentals & Core Concepts",
+                    duration: "3-4 weeks",
+                    description: "Learn the core architecture and basic concepts of " + skillName,
+                    topics: ["Installation & Setup", "Basic Syntax / Rules", "Core Principles", "Standard Tooling"],
+                    resources: [
+                        { name: "Official Documentation", type: "article", url: "https://google.com/search?q=" + encodeURIComponent(skillName + " official documentation") }
+                    ],
+                    project: "Hello World / Initial Basic Setup"
+                }
+            ],
+            finalProject: "Build a comprehensive, production-ready portfolio project using " + skillName,
+            careerImpact: "A strong mastery of " + skillName + " provides a massive competitive advantage in the modern tech landscape."
+        };
+    }
 }
 
 /**
@@ -302,11 +359,40 @@ Rules:
 - Provide specific, actionable exercises.
 - Ensure the JSON is perfectly valid.`;
 
-    const response = await callWithRetry(prompt);
     try {
+        const response = await callWithRetry(prompt);
         return extractJSON(response);
     } catch (e) {
-        throw new Error('AI failed to generate a valid health plan. Please try again.');
+        console.warn('[Fallback] AI Health Plan failed, using static fallback.', e);
+        return {
+            title: "Your Fundamentals Health Roadmap",
+            summary: "AI services are currently busy, but here is a timeless, foundational health roadmap based on core wellness principles.",
+            physicalHealth: {
+                focus: "Daily Movement & Recovery",
+                recommendations: [
+                    "Engage in at least 30 minutes of moderate activity daily.",
+                    "Stand up and stretch for 5 minutes every hour of sitting.",
+                    "Stay properly hydrated throughout the day."
+                ],
+                weeklySchedule: [
+                    { day: "Monday to Friday", activity: "Brisk Walk & Stretching", duration: "30 mins" },
+                    { day: "Weekend", activity: "Active Recreation / Sports", duration: "60 mins" }
+                ]
+            },
+            mentalHealth: {
+                focus: "Mental Clarity & Stress Reduction",
+                recommendations: [
+                    "Implement a 30-minute digital detox before bedtime.",
+                    "Practice mindfulness or deep breathing when feeling overwhelmed."
+                ],
+                exercises: [
+                    "Box Breathing: 4s inhale, 4s hold, 4s exhale, 4s hold.",
+                    "End-of-day Gratitude: Write down 3 positive moments."
+                ]
+            },
+            nutritionTips: ["Prioritize whole foods", "Ensure adequate protein intake", "Limit late-night snacking"],
+            dailyMantra: "Consistency beats intensity. Small daily habits create lasting transformation."
+        };
     }
 }
 
@@ -363,11 +449,30 @@ export async function generateImprovementRoadmap(stats) {
     - If Learning Time is low, focus on building focus habits.
     - Ensure JSON is perfectly valid.`;
 
-    const response = await callWithRetry(prompt);
     try {
+        const response = await callWithRetry(prompt);
         return extractJSON(response);
     } catch (e) {
-        throw new Error('AI failed to generate your roadmap. Please try again.');
+        console.warn('[Fallback] AI Roadmap failed, using static fallback.', e);
+        return {
+            goal: "Establish High-Performance Habits",
+            summary: "AI services are currently busy, so here is a foundational roadmap focusing on building unbreakable daily consistency.",
+            weeks: [
+                {
+                    week: 1,
+                    focus: "Audit and Routine Building",
+                    tasks: ["Track every hour of your day", "Establish a strict sleep schedule"],
+                    dailyTarget: "60 mins of deep work without distractions"
+                },
+                {
+                    week: 2,
+                    focus: "Skill Gap Analysis",
+                    tasks: ["Identify missing technical skills", "Create a learning schedule"],
+                    dailyTarget: "120 mins of focused learning"
+                }
+            ],
+            ultimateMilestone: "Complete a foundational consistency challenge for 14 straight days."
+        };
     }
 }
 
