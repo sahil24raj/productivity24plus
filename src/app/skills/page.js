@@ -91,8 +91,8 @@ export default function Skills() {
             const result = await analyzeResume(fullText);
             setAnalysis(result);
 
-            // Save to Firestore
-            if (user) {
+            // Save to Firestore only if analysis succeeded
+            if (user && !result.isFallback) {
                 await setUserDoc(user.uid, 'skillAnalysis/latest', {
                     aiAnalysis: result,
                     score: result.overallScore || 0,

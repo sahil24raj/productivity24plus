@@ -212,15 +212,16 @@ Rules:
     } catch (e) {
         console.warn('[Fallback] AI Resume Analysis failed, using static fallback.', e);
         return {
+            isFallback: true,
             skills: [
-                { name: "General Software Concepts", category: "Other", demandLevel: "medium", survivalPercentage: 70, futureOutlook: "Stable requirement for all roles", isFoundInResume: true }
+                { name: "System Diagnostic", category: "Other", demandLevel: "medium", survivalPercentage: 50, futureOutlook: "Error details provided for debugging", isFoundInResume: true }
             ],
-            overallScore: 65,
-            summary: "AI services are currently busy, returning a basic fallback analysis. Please maintain your focus on high-demand skills like AI/ML and Cloud technologies.",
-            strengths: ["Foundational Experience"],
-            gaps: ["Advanced Agentic AI Tooling", "Cloud-native Architecture"],
+            overallScore: 0,
+            summary: "🚨 AI API FAILURE: " + e.message + " --- Please verify your API keys are correct in Vercel Environment Variables and that they have quota remaining.",
+            strengths: ["Debugging Required"],
+            gaps: ["Valid API Response"],
             trendingSkillsToLearn: [
-                { name: "Generative AI Integration", reason: "Highest industry demand in 2025/2026", survivalPercentage: 95, difficulty: "intermediate", timeToLearn: "2-3 months" }
+                { name: "Verify API Keys", reason: "Check Vercel configurations", survivalPercentage: 100, difficulty: "beginner", timeToLearn: "5 mins" }
             ]
         };
     }
