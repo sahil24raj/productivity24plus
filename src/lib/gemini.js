@@ -43,6 +43,7 @@ async function callWithRetry(prompt, retries = 2, systemMsg = 'You are an API th
     }
 
     let lastError = '';
+    let allErrors = [];
     // Enforce delay for rate limits
     await delay(1500 + Math.random() * 500);
 
@@ -79,9 +80,10 @@ async function callWithRetry(prompt, retries = 2, systemMsg = 'You are an API th
 
                     const errData = await res.json().catch(() => ({}));
                     lastError = errData?.error?.message || `Grok HTTP ${res.status}`;
+                    allErrors.push(`Grok ${config.model}: ${lastError}`);
 
                     console.warn(`[Grok Fallback] Error: ${lastError}. Switching to next API key/model...`);
-                    if (res.status === 429 || res.status === 401 || res.status === 403) {
+                    if (res.status === 429 || res.status === 401 || res.status === 403 || res.status === 400) {
                         currentConfigIndex = (currentConfigIndex + 1) % MODEL_CONFIGS.length;
                         break; // Move to next config immediately for rate limits / bad keys
                     }
@@ -96,8 +98,7 @@ async function callWithRetry(prompt, retries = 2, systemMsg = 'You are an API th
                         body: JSON.stringify({
                             contents: [{ parts: [{ text: fullPrompt }] }],
                             generationConfig: {
-                                temperature: 0.7,
-                                maxOutputTokens: 8192
+                                temperature: 0.7
                             },
                         }),
                     });
@@ -109,22 +110,25 @@ async function callWithRetry(prompt, retries = 2, systemMsg = 'You are an API th
 
                     const errData = await res.json().catch(() => ({}));
                     lastError = errData?.error?.message || `Gemini HTTP ${res.status}`;
+                    allErrors.push(`Gemini ${config.model}: ${lastError}`);
 
                     console.warn(`[Gemini Fallback] Error: ${lastError}. Switching to next API key/model...`);
-                    if (res.status === 429 || res.status === 400 || res.status === 403 || res.status === 404) {
+                    if (res.status === 429 || res.status === 400 || res.status === 403 || res.status === 404 || res.status === 500) {
                         currentConfigIndex = (currentConfigIndex + 1) % MODEL_CONFIGS.length;
                         break; // Move to next config immediately for rate limits / bad keys
                     }
                 }
             } catch (err) {
                 lastError = err.message;
+                allErrors.push(`Network ${config.provider} ${config.model}: ${lastError}`);
                 console.warn(`[Network Fallback] ${config.provider} failed: ${lastError}`);
                 break; // Skip to next config on network issues
             }
         }
     }
 
-    throw new Error(`All AI models and API keys are currently busy. Latest Error: ${lastError}`);
+    const uniqueErrors = [...new Set(allErrors)].join(' | ');
+    throw new Error(`AI Failures -> ${uniqueErrors}`);
 }
 
 /**
