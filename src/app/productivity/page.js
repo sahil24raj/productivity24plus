@@ -9,8 +9,8 @@ import {
 import { useState, useMemo } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useData } from '@/hooks/useData';
-import { addDocument, deleteDocument } from '@/lib/firestore';
 import { getProductivityTips, generateHealthPlan } from '@/lib/gemini';
+import { setAiCache } from '@/lib/firestore';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 
 const CATEGORIES = {
@@ -38,7 +38,7 @@ const COLORS = ['#ef4444', '#8b5cf6', '#10b981'];
 
 export default function AIProductivityTracker() {
     const { user } = useAuth();
-    const { activities, loaded } = useData();
+    const { activities, loaded, aiCache, refreshAiCache } = useData();
     const [showModal, setShowModal] = useState(false);
     const [modalCategory, setModalCategory] = useState('learning');
     const [saving, setSaving] = useState(false);
@@ -48,10 +48,11 @@ export default function AIProductivityTracker() {
     const [actSubcategory, setActSubcategory] = useState('');
     const [actDuration, setActDuration] = useState('');
 
-    // AI States
-    const [aiTips, setAiTips] = useState([]);
+    // AI States from cache
+    const aiTips = aiCache?.productivityTips || [];
+    const healthPlan = aiCache?.healthPlan || null;
+
     const [tipsLoading, setTipsLoading] = useState(false);
-    const [healthPlan, setHealthPlan] = useState(null);
     const [planLoading, setPlanLoading] = useState(false);
     const [showPlanModal, setShowPlanModal] = useState(false);
 
@@ -128,11 +129,13 @@ export default function AIProductivityTracker() {
     };
 
     const fetchAiTips = async () => {
-        if (todayActivities.length === 0) return;
+        if (todayActivities.length === 0 || !user) return;
         setTipsLoading(true);
         try {
             const tips = await getProductivityTips(stats);
-            setAiTips(tips);
+            const todayStr = new Date().toISOString().split('T')[0];
+            await setAiCache(user.uid, todayStr, 'productivityTips', tips);
+            await refreshAiCache();
         } catch (err) {
             console.error('Error fetching tips:', err);
         }
@@ -140,12 +143,20 @@ export default function AIProductivityTracker() {
     };
 
     const handleGenerateHealthPlan = async () => {
-        setPlanLoading(true);
+        if (!user) return;
+
         setShowPlanModal(true);
+
+        // If we already have a cached plan, don't regenerate it automatically
+        if (healthPlan) return;
+
+        setPlanLoading(true);
         try {
             const healthActivities = todayActivities.filter(a => a.category === 'health');
             const plan = await generateHealthPlan(healthActivities);
-            setHealthPlan(plan);
+            const todayStr = new Date().toISOString().split('T')[0];
+            await setAiCache(user.uid, todayStr, 'healthPlan', plan);
+            await refreshAiCache();
         } catch (err) {
             console.error('Error generating health plan:', err);
         }
@@ -222,7 +233,7 @@ export default function AIProductivityTracker() {
 
                         {chartData.length > 0 ? (
                             <div className="w-full h-48">
-                                <ResponsiveContainer width="100%" height="100%">
+                                <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                                     <PieChart>
                                         <Pie
                                             data={chartData}
@@ -326,7 +337,7 @@ export default function AIProductivityTracker() {
                                 onClick={handleGenerateHealthPlan}
                                 className="w-full bg-accent-600 hover:bg-accent-550 text-white font-bold py-3 rounded-xl transition-all shadow-lg flex items-center justify-center gap-2"
                             >
-                                <FiMap /> Create Health Plan
+                                <FiMap /> {healthPlan ? 'View Health Plan' : 'Create Health Plan'}
                             </button>
                         </div>
 
@@ -341,7 +352,7 @@ export default function AIProductivityTracker() {
                                         className="text-xs text-brand-400 hover:text-brand-300 flex items-center gap-1"
                                     >
                                         {tipsLoading ? <div className="w-3 h-3 border border-brand-400 border-t-transparent rounded-full animate-spin" /> : <FiTrendingUp />}
-                                        Refresh
+                                        {aiTips.length > 0 ? 'Regenerate' : 'Generate'}
                                     </button>
                                 )}
                             </h3>

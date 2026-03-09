@@ -105,3 +105,13 @@ export const getActivitiesByDate = async (uid, startDate, endDate) => {
         return [];
     }
 };
+
+// Get AI cache for a specific date (uses yyyy-mm-dd as doc ID)
+export const getAiCache = async (uid, dateStr) => {
+    return await getUserDoc(uid, `aiCache/${dateStr}`);
+};
+
+// Save AI cache for a specific feature on a specific date
+export const setAiCache = async (uid, dateStr, featureKey, data) => {
+    await setUserDoc(uid, `aiCache/${dateStr}`, { [featureKey]: data });
+};

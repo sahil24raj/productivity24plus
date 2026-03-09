@@ -5,6 +5,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { FiActivity, FiCpu, FiBookOpen, FiHeart, FiZap, FiTrendingUp, FiX, FiTarget } from 'react-icons/fi';
 import { useMemo, useState, useEffect } from 'react';
 import { useData } from '@/hooks/useData';
+import { useAuth } from '@/hooks/useAuth';
+import { setAiCache } from '@/lib/firestore';
 import { getAIRecommendation, generateImprovementRoadmap } from '@/lib/gemini';
 import {
     AreaChart,
@@ -22,11 +24,15 @@ import {
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 export default function Dashboard() {
-    const { activities, skillAnalysis, loaded } = useData();
-    const [aiRec, setAiRec] = useState('');
+    const { user } = useAuth();
+    const { activities, skillAnalysis, loaded, aiCache, refreshAiCache } = useData();
     const [aiRecLoading, setAiRecLoading] = useState(false);
 
-    const isLoaded = loaded.activities && loaded.skills;
+    // Use cached AI data if available for today
+    const aiRec = aiCache?.dashboardInsights || null;
+    const roadmap = aiCache?.dashboardRoadmap || null;
+
+    const isLoaded = loaded.activities && loaded.skills && loaded.aiCache;
 
     const { displayStats, rawStats, activityData, breakdownData } = useMemo(() => {
         const todayStr = new Date().toISOString().split('T')[0];
@@ -85,14 +91,12 @@ export default function Dashboard() {
         };
     }, [activities, skillAnalysis]);
 
-    // AI recommendation is now fetched manually via UI button to preserve API quotas.
-
-    const [roadmap, setRoadmap] = useState(null);
+    // AI recommendation is now fetched manually via UI button to preserve API quotas, but cached.
     const [roadmapLoading, setRoadmapLoading] = useState(false);
     const [showRoadmapModal, setShowRoadmapModal] = useState(false);
 
     const handleGenerateRoadmap = async () => {
-        if (!aiRec || roadmapLoading) return;
+        if (!aiRec || roadmapLoading || !user) return;
         setRoadmapLoading(true);
         try {
             const data = await generateImprovementRoadmap({
@@ -100,7 +104,9 @@ export default function Dashboard() {
                 percentile: aiRec.percentile,
                 rankingText: aiRec.rankingText
             });
-            setRoadmap(data);
+            const todayStr = new Date().toISOString().split('T')[0];
+            await setAiCache(user.uid, todayStr, 'dashboardRoadmap', data);
+            await refreshAiCache();
             setShowRoadmapModal(true);
         } catch (err) {
             alert("Failed to generate roadmap. Please try again.");
@@ -296,17 +302,20 @@ export default function Dashboard() {
                                 <span className="flex items-center"><FiCpu className="mr-2 text-brand-400" /> AI Insights</span>
                                 {!aiRec && !aiRecLoading && (
                                     <button
-                                        onClick={() => {
+                                        onClick={async () => {
+                                            if (!user) return;
                                             setAiRecLoading(true);
-                                            getAIRecommendation(rawStats)
-                                                .then(rec => setAiRec(rec))
-                                                .catch(err => setAiRec({
-                                                    percentile: "N/A",
-                                                    rankingText: "Offline",
-                                                    insight: "AI is currently offline. Please check your internet and try again.",
-                                                    tips: ["Check connection", "Retry later"]
-                                                }))
-                                                .finally(() => setAiRecLoading(false));
+                                            try {
+                                                const rec = await getAIRecommendation(rawStats);
+                                                const todayStr = new Date().toISOString().split('T')[0];
+                                                await setAiCache(user.uid, todayStr, 'dashboardInsights', rec);
+                                                await refreshAiCache();
+                                            } catch (err) {
+                                                console.error(err);
+                                                alert("AI is currently busy. Please try again.");
+                                            } finally {
+                                                setAiRecLoading(false);
+                                            }
                                         }}
                                         className="text-xs bg-brand-500 hover:bg-brand-600 text-white px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
                                     >

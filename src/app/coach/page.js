@@ -5,15 +5,22 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { FiSend, FiUser, FiZap, FiTarget, FiTrendingUp, FiMessageSquare } from 'react-icons/fi';
 import { getCoachResponse, getIndustryRecommendations } from '@/lib/gemini';
 import { useData } from '@/hooks/useData';
+import { useAuth } from '@/hooks/useAuth';
+import { setAiCache } from '@/lib/firestore';
 
 export default function AICoach() {
-    const { skillAnalysis } = useData();
+    const { user } = useAuth();
+    const { skillAnalysis, aiCache, refreshAiCache } = useData();
     const [messages, setMessages] = useState([
         { role: 'assistant', content: "Hello! I am your AI Coach. I'm here to help you navigate the 2025-2026 AI era. I can help you with career growth, technical deep-dives, or just figuring out what to learn next. What's on your mind today?" }
     ]);
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
-    const [industryData, setIndustryData] = useState(null);
+
+    // Cached Industry Data
+    const industryData = aiCache?.industryData || null;
+    const [loadingIndustry, setLoadingIndustry] = useState(false);
+
     const messagesEndRef = useRef(null);
 
     const scrollToBottom = () => {
@@ -24,7 +31,21 @@ export default function AICoach() {
         scrollToBottom();
     }, [messages]);
 
-    // Trending data is now fetched manually via UI button to preserve API quotas.
+    // Fetch and cache Industry Data
+    const fetchIndustryData = async () => {
+        if (!user || loadingIndustry) return;
+        setLoadingIndustry(true);
+        try {
+            const data = await getIndustryRecommendations();
+            const todayStr = new Date().toISOString().split('T')[0];
+            await setAiCache(user.uid, todayStr, 'industryData', data);
+            await refreshAiCache();
+        } catch (err) {
+            console.error('Error fetching industry data:', err);
+        } finally {
+            setLoadingIndustry(false);
+        }
+    };
 
     const handleSend = async (e) => {
         e.preventDefault();
@@ -143,13 +164,9 @@ export default function AICoach() {
                             <h3 className="text-white font-bold flex items-center gap-2">
                                 <FiTrendingUp className="text-brand-400" /> Trending 2026
                             </h3>
-                            {!industryData && (
+                            {!industryData && !loadingIndustry && (
                                 <button
-                                    onClick={() => {
-                                        setIndustryData(null); // triggers loading state
-                                        // Fake a loading state since we don't have a dedicated loading variable for it yet:
-                                        getIndustryRecommendations().then(setIndustryData);
-                                    }}
+                                    onClick={fetchIndustryData}
                                     className="text-[10px] bg-brand-500 hover:bg-brand-600 text-white px-2 py-1 flex items-center gap-1 rounded"
                                 >
                                     <FiZap /> Load
@@ -158,9 +175,16 @@ export default function AICoach() {
                         </div>
                         <div className="space-y-4">
                             {!industryData ? (
-                                [1, 2, 3].map(i => (
-                                    <div key={i} className="h-16 bg-surface-hover rounded-xl animate-pulse" />
-                                ))
+                                loadingIndustry ? (
+                                    [1, 2, 3].map(i => (
+                                        <div key={i} className="h-16 bg-surface-hover rounded-xl animate-pulse" />
+                                    ))
+                                ) : (
+                                    <div className="text-center py-6 border-2 border-dashed border-surface-border rounded-xl">
+                                        <FiZap className="mx-auto text-gray-600 text-2xl mb-2 opacity-30" />
+                                        <p className="text-xs text-gray-500">Load today's trending skills</p>
+                                    </div>
+                                )
                             ) : (
                                 industryData.trendingSkills.map((skill, i) => (
                                     <div
@@ -185,7 +209,13 @@ export default function AICoach() {
                         </h3>
                         <div className="space-y-3">
                             {!industryData ? (
-                                <div className="h-24 bg-surface-hover rounded-xl animate-pulse" />
+                                loadingIndustry ? (
+                                    <div className="h-24 bg-surface-hover rounded-xl animate-pulse" />
+                                ) : (
+                                    <div className="text-center py-6 border-2 border-dashed border-surface-border rounded-xl">
+                                        <p className="text-xs text-gray-500">Load trending data to see daily picks</p>
+                                    </div>
+                                )
                             ) : (
                                 industryData.dailyPicks.map((pick, i) => (
                                     <div

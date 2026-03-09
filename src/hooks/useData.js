@@ -12,22 +12,26 @@ export const DataProvider = ({ children }) => {
     const [tasks, setTasks] = useState([]);
     const [skillAnalysis, setSkillAnalysis] = useState(null);
     const [settings, setSettings] = useState(null);
+    const [aiCache, setAiCacheData] = useState({});
     const [loaded, setLoaded] = useState({
         activities: false,
         skills: false,
         settings: false,
+        aiCache: false,
     });
 
     // Subscribe to all collections once when user logs in
     useEffect(() => {
         if (!user) {
-            // Reset on logout
             setActivities([]);
             setSkillAnalysis(null);
             setSettings(null);
-            setLoaded({ activities: false, skills: false, settings: false });
+            setAiCacheData({});
+            setLoaded({ activities: false, skills: false, settings: false, aiCache: false });
             return;
         }
+
+        const todayStr = new Date().toISOString().split('T')[0];
 
         // Subscribe to activities
         const unsubActivities = subscribeToCollection(user.uid, 'activities', (docs) => {
@@ -46,6 +50,12 @@ export const DataProvider = ({ children }) => {
             setSettings(data);
             setLoaded(prev => ({ ...prev, settings: true }));
         }).catch(() => setLoaded(prev => ({ ...prev, settings: true })));
+
+        // Load AI Cache for today
+        getUserDoc(user.uid, `aiCache/${todayStr}`).then(data => {
+            setAiCacheData(data || {});
+            setLoaded(prev => ({ ...prev, aiCache: true }));
+        }).catch(() => setLoaded(prev => ({ ...prev, aiCache: true })));
 
         return () => {
             unsubActivities();
@@ -66,14 +76,24 @@ export const DataProvider = ({ children }) => {
         setSettings(data);
     }, [user]);
 
+    // Refresh AI Cache
+    const refreshAiCache = useCallback(async () => {
+        if (!user) return;
+        const todayStr = new Date().toISOString().split('T')[0];
+        const data = await getUserDoc(user.uid, `aiCache/${todayStr}`);
+        setAiCacheData(data || {});
+    }, [user]);
+
     return (
         <DataContext.Provider value={{
             activities,
             skillAnalysis,
             settings,
+            aiCache,
             loaded,
             refreshSkillAnalysis,
             refreshSettings,
+            refreshAiCache,
         }}>
             {children}
         </DataContext.Provider>
