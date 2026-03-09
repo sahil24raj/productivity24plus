@@ -18,7 +18,7 @@ const MODEL_CONFIGS = [];
 
 // Push Gemini configurations first (Highest Priority as per user request)
 GEMINI_KEYS.forEach(key => {
-    ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'].forEach(model => {
+    ['gemini-1.5-pro', 'gemini-1.5-flash'].forEach(model => {
         MODEL_CONFIGS.push({ provider: 'gemini', key, model });
     });
 });
@@ -106,7 +106,7 @@ async function callWithRetry(prompt, retries = 2, systemMsg = 'You are an API th
                     lastError = errData?.error?.message || `Gemini HTTP ${res.status}`;
 
                     console.warn(`[Gemini Fallback] Error: ${lastError}. Switching to next API key/model...`);
-                    if (res.status === 429 || res.status === 400 || res.status === 403) {
+                    if (res.status === 429 || res.status === 400 || res.status === 403 || res.status === 404) {
                         currentConfigIndex = (currentConfigIndex + 1) % MODEL_CONFIGS.length;
                         break; // Move to next config immediately for rate limits / bad keys
                     }
