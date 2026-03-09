@@ -88,7 +88,6 @@ async function callWithRetry(prompt, retries = 2, systemMsg = 'You are an API th
 
                 } else if (config.provider === 'gemini') {
                     const fullPrompt = systemMsg ? `${systemMsg}\n\n${prompt}` : prompt;
-                    const isJsonRequested = systemMsg && systemMsg.includes('JSON');
 
                     const url = `https://generativelanguage.googleapis.com/v1beta/models/${config.model}:generateContent?key=${config.key}`;
                     const res = await fetch(url, {
@@ -98,8 +97,7 @@ async function callWithRetry(prompt, retries = 2, systemMsg = 'You are an API th
                             contents: [{ parts: [{ text: fullPrompt }] }],
                             generationConfig: {
                                 temperature: 0.7,
-                                maxOutputTokens: 8192,
-                                responseMimeType: isJsonRequested ? "application/json" : "text/plain"
+                                maxOutputTokens: 8192
                             },
                         }),
                     });
