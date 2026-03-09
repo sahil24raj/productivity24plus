@@ -129,7 +129,7 @@ export default function AIProductivityTracker() {
     };
 
     const fetchAiTips = async () => {
-        if (todayActivities.length === 0 || !user) return;
+        if (!user || todayActivities.length === 0) return;
         setTipsLoading(true);
         try {
             const tips = await getProductivityTips(stats);
@@ -345,7 +345,7 @@ export default function AIProductivityTracker() {
                         <div className="glass-card p-6 border border-brand-500/20">
                             <h3 className="text-white font-bold mb-4 flex items-center justify-between">
                                 <span className="flex items-center"><FiZap className="mr-2 text-yellow-400" /> AI Optimization</span>
-                                {todayActivities.length > 0 && (
+                                {stats.timepass > 0 || stats.learning > 0 || stats.health > 0 ? (
                                     <button
                                         onClick={fetchAiTips}
                                         disabled={tipsLoading}
@@ -354,7 +354,7 @@ export default function AIProductivityTracker() {
                                         {tipsLoading ? <div className="w-3 h-3 border border-brand-400 border-t-transparent rounded-full animate-spin" /> : <FiTrendingUp />}
                                         {aiTips.length > 0 ? 'Regenerate' : 'Generate'}
                                     </button>
-                                )}
+                                ) : null}
                             </h3>
 
                             {aiTips.length > 0 ? (
