@@ -1,3 +1,5 @@
+"use server";
+
 const GROK_KEYS = [
     process.env.GROK_API_KEY_1,
     process.env.GROK_API_KEY_2,
@@ -35,9 +37,9 @@ const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
  * Try calling AI APIs with automatic provider/model fallback.
  * Cycles from Grok -> Gemini transparently on quota errors.
  */
-async function callWithRetry(prompt, retries = 2) {
+async function callWithRetry(prompt, retries = 2, systemMsg = 'You are an API that returns ONLY raw valid JSON text without markdown formatting or code blocks. Never wrap output in ```json or ```.') {
     if (MODEL_CONFIGS.length === 0) {
-        throw new Error("No API keys configured");
+        throw new Error("No API keys configured on the server.");
     }
 
     let lastError = '';
@@ -51,6 +53,12 @@ async function callWithRetry(prompt, retries = 2) {
         for (let attempt = 0; attempt < retries; attempt++) {
             try {
                 if (config.provider === 'grok') {
+                    const messages = [];
+                    if (systemMsg) {
+                        messages.push({ role: 'system', content: systemMsg });
+                    }
+                    messages.push({ role: 'user', content: prompt });
+
                     const res = await fetch('https://api.x.ai/v1/chat/completions', {
                         method: 'POST',
                         headers: {
@@ -58,10 +66,7 @@ async function callWithRetry(prompt, retries = 2) {
                             'Authorization': `Bearer ${config.key}`
                         },
                         body: JSON.stringify({
-                            messages: [
-                                { role: 'system', content: 'You are an API that returns ONLY raw valid JSON text without markdown formatting or code blocks. Never wrap output in ```json or ```.' },
-                                { role: 'user', content: prompt }
-                            ],
+                            messages: messages,
                             model: config.model,
                             temperature: 0.7,
                         })
@@ -514,7 +519,8 @@ export async function getCoachResponse(history, query, skillAnalysis) {
     Response:`;
 
     try {
-        return await callWithRetry(prompt);
+        const systemPrompt = "You are a world-class AI Career Coach.";
+        return await callWithRetry(prompt, 2, systemPrompt);
     } catch (e) {
         return "I am currently taking a quick break to process other requests! My servers are a bit busy right now. Please try asking again in about a minute!";
     }

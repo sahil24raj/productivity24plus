@@ -129,7 +129,7 @@ export default function AIProductivityTracker() {
     };
 
     const fetchAiTips = async () => {
-        if (!user || todayActivities.length === 0) return;
+        if (!user || (stats.timepass === 0 && stats.learning === 0 && stats.health === 0)) return;
         setTipsLoading(true);
         try {
             const tips = await getProductivityTips(stats);
