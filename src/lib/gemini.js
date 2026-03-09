@@ -16,17 +16,17 @@ const GEMINI_KEYS = [
 
 const MODEL_CONFIGS = [];
 
-// Push Grok configurations first (Highest Priority)
-GROK_KEYS.forEach(key => {
-    ['grok-2-latest'].forEach(model => {
-        MODEL_CONFIGS.push({ provider: 'grok', key, model });
-    });
-});
-
-// Push Gemini configurations next (Fallback)
+// Push Gemini configurations first (Highest Priority as per user request)
 GEMINI_KEYS.forEach(key => {
     ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'].forEach(model => {
         MODEL_CONFIGS.push({ provider: 'gemini', key, model });
+    });
+});
+
+// Push Grok configurations next (Fallback)
+GROK_KEYS.forEach(key => {
+    ['grok-2-latest'].forEach(model => {
+        MODEL_CONFIGS.push({ provider: 'grok', key, model });
     });
 });
 
