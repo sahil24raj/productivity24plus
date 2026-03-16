@@ -70,7 +70,7 @@ async function callWithRetry(prompt, retries = 2, systemMsg = 'You are an API th
 
                     const isGroq = config.key.startsWith('gsk_');
                     const endpoint = isGroq ? 'https://api.groq.com/openai/v1/chat/completions' : 'https://api.x.ai/v1/chat/completions';
-                    const modelToUse = isGroq ? 'llama3-8b-8192' : config.model;
+                    const modelToUse = isGroq ? 'llama-3.1-8b-instant' : config.model;
 
                     const payload = {
                         messages: messages,
