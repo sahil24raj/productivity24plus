@@ -92,7 +92,7 @@ export default function Skills() {
             setAnalysis(result);
 
             // Save to Firestore only if analysis succeeded
-            if (user && !result.isFallback) {
+            if (user && !result.isFallback && !result.error && !result.summary?.includes('AI API FAILURE')) {
                 await setUserDoc(user.uid, 'skillAnalysis/latest', {
                     aiAnalysis: result,
                     score: result.overallScore || 0,
@@ -101,6 +101,9 @@ export default function Skills() {
                     analyzedAt: new Date().toISOString(),
                 });
                 await refreshSkillAnalysis();
+            } else if (result.isFallback || result.summary?.includes('API FAILURE')) {
+                 // Throw error so it shows up in UI instead of silently caching bad data
+                 throw new Error(result.summary || "AI Analysis Failed");
             }
         } catch (err) {
             console.error('Error analyzing resume:', err);
