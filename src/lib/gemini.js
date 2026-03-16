@@ -1,6 +1,7 @@
 "use server";
 
 const GROK_KEYS = [
+    process.env.GROK_API_KEY_8,
     process.env.GROK_API_KEY_1,
     process.env.GROK_API_KEY_2,
     process.env.GROK_API_KEY
@@ -22,7 +23,7 @@ const MODEL_CONFIGS = [];
 
 // Push Gemini configurations first (Highest Priority as per user request)
 GEMINI_KEYS.forEach(key => {
-    ['gemini-1.5-flash-8b', 'gemini-1.5-pro'].forEach(model => {
+    ['gemini-1.5-flash-8b'].forEach(model => {
         MODEL_CONFIGS.push({ provider: 'gemini', key, model });
     });
 });
