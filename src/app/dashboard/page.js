@@ -300,28 +300,28 @@ export default function Dashboard() {
                             <div className="absolute top-0 right-0 w-32 h-32 bg-brand-500/10 rounded-full blur-2xl transform translate-x-1/2 -translate-y-1/2"></div>
                             <h2 className="text-lg font-bold text-white mb-4 flex items-center justify-between">
                                 <span className="flex items-center"><FiCpu className="mr-2 text-brand-400" /> AI Insights</span>
-                                {!aiRec && !aiRecLoading && (
-                                    <button
-                                        onClick={async () => {
-                                            if (!user) return;
-                                            setAiRecLoading(true);
-                                            try {
-                                                const rec = await getAIRecommendation(rawStats);
-                                                const todayStr = new Date().toISOString().split('T')[0];
-                                                await setAiCache(user.uid, todayStr, 'dashboardInsights', rec);
-                                                await refreshAiCache();
-                                            } catch (err) {
-                                                console.error(err);
-                                                alert("AI is currently busy. Please try again.");
-                                            } finally {
-                                                setAiRecLoading(false);
-                                            }
-                                        }}
-                                        className="text-xs bg-brand-500 hover:bg-brand-600 text-white px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
-                                    >
-                                        <FiZap className="w-3 h-3" /> Generate
-                                    </button>
-                                )}
+                                <button
+                                    onClick={async () => {
+                                        if (!user || aiRecLoading) return;
+                                        setAiRecLoading(true);
+                                        try {
+                                            const rec = await getAIRecommendation(rawStats);
+                                            const todayStr = new Date().toISOString().split('T')[0];
+                                            await setAiCache(user.uid, todayStr, 'dashboardInsights', rec);
+                                            await refreshAiCache();
+                                        } catch (err) {
+                                            console.error(err);
+                                            alert("AI is currently busy. Please try again.");
+                                        } finally {
+                                            setAiRecLoading(false);
+                                        }
+                                    }}
+                                    disabled={aiRecLoading}
+                                    className="text-xs bg-brand-500 hover:bg-brand-600 text-white px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 disabled:opacity-50 relative z-10"
+                                >
+                                    {aiRecLoading ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <FiZap className="w-3 h-3" />} 
+                                    {aiRec ? "Refresh" : "Generate"}
+                                </button>
                             </h2>
                             <div className="bg-surface-hover p-5 rounded-xl border border-surface-border">
                                 {aiRecLoading ? (
@@ -364,7 +364,7 @@ export default function Dashboard() {
                                             {roadmapLoading ? (
                                                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                                             ) : <FiZap />}
-                                            {roadmapLoading ? "Creating Roadmap..." : "Create Improvement Roadmap"}
+                                            {roadmapLoading ? "Processing..." : roadmap ? "Regenerate Roadmap" : "Create Improvement Roadmap"}
                                         </button>
                                     </div>
                                 ) : (

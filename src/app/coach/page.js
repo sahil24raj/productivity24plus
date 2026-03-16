@@ -164,12 +164,12 @@ export default function AICoach() {
                             <h3 className="text-white font-bold flex items-center gap-2">
                                 <FiTrendingUp className="text-brand-400" /> Trending 2026
                             </h3>
-                            {!industryData && !loadingIndustry && (
+                            {!loadingIndustry && (
                                 <button
                                     onClick={fetchIndustryData}
-                                    className="text-[10px] bg-brand-500 hover:bg-brand-600 text-white px-2 py-1 flex items-center gap-1 rounded"
+                                    className="text-[10px] bg-brand-500 hover:bg-brand-600 text-white px-2 py-1 flex items-center gap-1 rounded transition-colors"
                                 >
-                                    <FiZap /> Load
+                                    <FiZap /> {industryData ? "Refresh" : "Load"}
                                 </button>
                             )}
                         </div>

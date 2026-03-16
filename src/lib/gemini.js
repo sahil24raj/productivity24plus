@@ -449,11 +449,12 @@ Stats (minutes spent today):
 - Learning: ${categoryStats.learning} mins
 - Health: ${categoryStats.health} mins
 
-Return a JSON array of 3 strings: ["Tip 1", "Tip 2", "Tip 3"]. No markdown.`;
+Return a JSON object with a single key 'tips' containing an array of 3 strings: {"tips": ["Tip 1", "Tip 2", "Tip 3"]}. No markdown.`;
 
     const response = await callWithRetry(prompt);
     try {
-        return extractJSON(response);
+        const data = extractJSON(response);
+        return data.tips || data; // handle if it accidentally returns the array directly anyway
     } catch (e) {
         return ["Try to balance your learning and timepass sessions better.", "Ensure you don't neglect physical health while studying.", "Use the Pomodoro technique to stay focused."];
     }

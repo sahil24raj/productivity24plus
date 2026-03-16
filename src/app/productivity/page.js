@@ -151,8 +151,7 @@ export default function AIProductivityTracker() {
         setShowPlanModal(true);
         setAiError(null);
 
-        // If we already have a cached plan, don't regenerate it automatically
-        if (healthPlan) return;
+        // If we already have a cached plan, don't regenerate it automatically (unless forced by the new button)
 
         setPlanLoading(true);
         try {
@@ -353,15 +352,29 @@ export default function AIProductivityTracker() {
                         {/* Health Roadmap Card */}
                         <div className="glass-card p-6 glow-box-accent relative overflow-hidden">
                             <div className="absolute top-0 right-0 w-24 h-24 bg-accent-500/10 rounded-full blur-2xl -mr-12 -mt-12" />
-                            <h3 className="text-white font-bold mb-3 flex items-center">
-                                <FiHeart className="mr-2 text-accent-400" /> Wellness Coach
+                            <h3 className="text-white font-bold mb-3 flex items-center justify-between">
+                                <span className="flex items-center"><FiHeart className="mr-2 text-accent-400" /> Wellness Coach</span>
+                                {healthPlan && (
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleGenerateHealthPlan();
+                                        }}
+                                        disabled={planLoading}
+                                        className="text-xs text-accent-400 hover:text-accent-300 flex items-center gap-1 z-10"
+                                        title="Regenerate Health Plan"
+                                    >
+                                        {planLoading ? <div className="w-3 h-3 border border-accent-400 border-t-transparent rounded-full animate-spin" /> : <FiZap />}
+                                        Refresh
+                                    </button>
+                                )}
                             </h3>
                             <p className="text-gray-400 text-sm mb-4 leading-relaxed">
                                 Get a complete personalized mental and physical health roadmap based on your lifestyle.
                             </p>
                             <button
                                 onClick={handleGenerateHealthPlan}
-                                className="w-full bg-accent-600 hover:bg-accent-550 text-white font-bold py-3 rounded-xl transition-all shadow-lg flex items-center justify-center gap-2"
+                                className="w-full bg-accent-600 hover:bg-accent-550 text-white font-bold py-3 rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 relative z-10"
                             >
                                 <FiMap /> {healthPlan ? 'View Health Plan' : 'Create Health Plan'}
                             </button>
