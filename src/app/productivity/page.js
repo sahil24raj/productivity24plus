@@ -10,7 +10,7 @@ import { useState, useMemo } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useData } from '@/hooks/useData';
 import { getProductivityTips, generateHealthPlan } from '@/lib/gemini';
-import { setAiCache } from '@/lib/firestore';
+import { setAiCache, addDocument, deleteDocument } from '@/lib/firestore';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 
 const CATEGORIES = {
