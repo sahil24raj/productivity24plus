@@ -6,7 +6,7 @@ import { FiSend, FiUser, FiZap, FiTarget, FiTrendingUp, FiMessageSquare } from '
 import { getCoachResponse, getIndustryRecommendations } from '@/lib/gemini';
 import { useData } from '@/hooks/useData';
 import { useAuth } from '@/hooks/useAuth';
-import { setAiCache } from '@/lib/firestore';
+import { setAiCache, getUserDoc } from '@/lib/firestore';
 
 export default function AICoach() {
     const { user } = useAuth();
@@ -26,12 +26,19 @@ export default function AICoach() {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     };
 
-    // Load Chat History from Cache on Mount
+    // Load Chat History directly from cache doc on Mount
     useEffect(() => {
-        if (aiCache?.coachHistory && aiCache.coachHistory.length > 0) {
-            setMessages(aiCache.coachHistory);
-        }
-    }, [aiCache]);
+        const fetchHistory = async () => {
+            if (user) {
+                const todayStr = new Date().toISOString().split('T')[0];
+                const data = await getUserDoc(user.uid, `aiCache/${todayStr}`);
+                if (data?.coachHistory && data.coachHistory.length > 0) {
+                    setMessages(data.coachHistory);
+                }
+            }
+        };
+        fetchHistory();
+    }, [user]);
 
     // Save Chat History whenever it changes
     useEffect(() => {
@@ -119,7 +126,6 @@ export default function AICoach() {
                                 setMessages([initialGreeting]);
                                 const todayStr = new Date().toISOString().split('T')[0];
                                 await setAiCache(user.uid, todayStr, 'coachHistory', [initialGreeting]);
-                                await refreshAiCache();
                             }}
                             className="text-xs bg-surface border border-surface-border hover:bg-surface-hover text-gray-300 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
                             title="Start a new conversation"
