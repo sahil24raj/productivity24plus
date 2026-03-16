@@ -114,7 +114,8 @@ async function callWithRetry(prompt, retries = 2, systemMsg = 'You are an API th
                     }
 
                     const errData = await res.json().catch(() => ({}));
-                    lastError = errData?.error?.message || `Gemini HTTP ${res.status}`;
+                    const stringifiedErr = JSON.stringify(errData);
+                    lastError = errData?.error?.message || `Gemini HTTP ${res.status} ${res.statusText} - ${stringifiedErr}`;
                     allErrors.push(`Gemini ${config.model}: ${lastError}`);
 
                     console.warn(`[Gemini Fallback] Error: ${lastError}. Switching to next API key/model...`);
