@@ -48,14 +48,15 @@ async function callWithRetry(prompt, retries = 2, systemMsg = 'You are an API th
 
     let lastError = '';
     let allErrors = [];
-    // Enforce delay for rate limits
-    await delay(1500 + Math.random() * 500);
 
     for (let i = 0; i < MODEL_CONFIGS.length; i++) {
         const indexToUse = (currentConfigIndex + i) % MODEL_CONFIGS.length;
         const config = MODEL_CONFIGS[indexToUse];
 
         for (let attempt = 0; attempt < retries; attempt++) {
+            // Enforce delay between requests to prevent hitting rate limits fast
+            await delay(2500 + Math.random() * 500);
+
             try {
                 if (config.provider === 'grok') {
                     const messages = [];
