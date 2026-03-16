@@ -55,6 +55,7 @@ export default function AIProductivityTracker() {
     const [tipsLoading, setTipsLoading] = useState(false);
     const [planLoading, setPlanLoading] = useState(false);
     const [showPlanModal, setShowPlanModal] = useState(false);
+    const [aiError, setAiError] = useState(null);
 
     // Toggle State
     const [viewMode, setViewMode] = useState('daily');
@@ -131,6 +132,7 @@ export default function AIProductivityTracker() {
     const fetchAiTips = async () => {
         if (!user || (stats.timepass === 0 && stats.learning === 0 && stats.health === 0)) return;
         setTipsLoading(true);
+        setAiError(null);
         try {
             const tips = await getProductivityTips(stats);
             const todayStr = new Date().toISOString().split('T')[0];
@@ -138,6 +140,7 @@ export default function AIProductivityTracker() {
             await refreshAiCache();
         } catch (err) {
             console.error('Error fetching tips:', err);
+            setAiError(err.message);
         }
         setTipsLoading(false);
     };
@@ -146,6 +149,7 @@ export default function AIProductivityTracker() {
         if (!user) return;
 
         setShowPlanModal(true);
+        setAiError(null);
 
         // If we already have a cached plan, don't regenerate it automatically
         if (healthPlan) return;
@@ -159,6 +163,7 @@ export default function AIProductivityTracker() {
             await refreshAiCache();
         } catch (err) {
             console.error('Error generating health plan:', err);
+            setAiError(err.message);
         }
         setPlanLoading(false);
     };
@@ -175,6 +180,27 @@ export default function AIProductivityTracker() {
                         <p className="text-gray-400 text-sm">Balanced growth across Timepass, Learning, and Health.</p>
                     </div>
                 </div>
+
+                {/* Error Banner */}
+                <AnimatePresence>
+                    {aiError && (
+                        <motion.div
+                            initial={{ opacity: 0, y: -10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -10 }}
+                            className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl flex items-start gap-3"
+                        >
+                            <FiInfo className="text-red-400 mt-0.5 shrink-0" />
+                            <div className="flex-1">
+                                <p className="text-red-400 text-xs font-bold uppercase tracking-wider mb-1">AI API FAILURE</p>
+                                <p className="text-red-200/80 text-xs leading-relaxed">{aiError}</p>
+                            </div>
+                            <button onClick={() => setAiError(null)} className="text-red-400 hover:text-red-300">
+                                <FiX />
+                            </button>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
 
                 {/* Stats & Chart Row */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

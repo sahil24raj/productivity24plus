@@ -60,7 +60,7 @@ export default function AICoach() {
             const response = await getCoachResponse(messages, input, skillAnalysis);
             setMessages(prev => [...prev, { role: 'assistant', content: response }]);
         } catch (err) {
-            setMessages(prev => [...prev, { role: 'assistant', content: "I'm sorry, I'm having trouble connecting to my global brain. Please try again in a moment." }]);
+            setMessages(prev => [...prev, { role: 'assistant', content: `🚨 AI API FAILURE: ${err.message}` }]);
         } finally {
             setLoading(false);
         }
@@ -77,7 +77,7 @@ export default function AICoach() {
             const response = await getCoachResponse(messages, query, skillAnalysis);
             setMessages(prev => [...prev, { role: 'assistant', content: response }]);
         } catch (err) {
-            setMessages(prev => [...prev, { role: 'assistant', content: "I couldn't fetch the deep-dive details. Please try again." }]);
+            setMessages(prev => [...prev, { role: 'assistant', content: `🚨 AI API FAILURE: ${err.message}` }]);
         } finally {
             setLoading(false);
         }
