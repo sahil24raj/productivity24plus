@@ -20,7 +20,7 @@ const MODEL_CONFIGS = [];
 
 // Push Gemini configurations first (Highest Priority as per user request)
 GEMINI_KEYS.forEach(key => {
-    ['gemini-1.5-flash', 'gemini-1.5-pro'].forEach(model => {
+    ['gemini-1.5-flash'].forEach(model => {
         MODEL_CONFIGS.push({ provider: 'gemini', key, model });
     });
 });
