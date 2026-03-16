@@ -50,9 +50,10 @@ async function callWithRetry(prompt, retries = 2, systemMsg = 'You are an API th
 
     let lastError = '';
     let allErrors = [];
+    let startConfigIndex = currentConfigIndex;
 
     for (let i = 0; i < MODEL_CONFIGS.length; i++) {
-        const indexToUse = (currentConfigIndex + i) % MODEL_CONFIGS.length;
+        const indexToUse = (startConfigIndex + i) % MODEL_CONFIGS.length;
         const config = MODEL_CONFIGS[indexToUse];
 
         for (let attempt = 0; attempt < retries; attempt++) {
@@ -67,31 +68,41 @@ async function callWithRetry(prompt, retries = 2, systemMsg = 'You are an API th
                     }
                     messages.push({ role: 'user', content: prompt });
 
-                    const res = await fetch('https://api.x.ai/v1/chat/completions', {
+                    const isGroq = config.key.startsWith('gsk_');
+                    const endpoint = isGroq ? 'https://api.groq.com/openai/v1/chat/completions' : 'https://api.x.ai/v1/chat/completions';
+                    const modelToUse = isGroq ? 'llama3-8b-8192' : config.model;
+
+                    const payload = {
+                        messages: messages,
+                        model: modelToUse,
+                        temperature: 0.7,
+                    };
+                    
+                    if (isGroq) {
+                        payload.response_format = { type: "json_object" };
+                    }
+
+                    const res = await fetch(endpoint, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
                             'Authorization': `Bearer ${config.key}`
                         },
-                        body: JSON.stringify({
-                            messages: messages,
-                            model: config.model,
-                            temperature: 0.7,
-                        })
+                        body: JSON.stringify(payload)
                     });
 
                     if (res.ok) {
                         const data = await res.json();
+                        currentConfigIndex = indexToUse; // Save successful config index
                         return data.choices?.[0]?.message?.content || '';
                     }
 
                     const errData = await res.json().catch(() => ({}));
-                    lastError = errData?.error?.message || `Grok HTTP ${res.status}`;
-                    allErrors.push(`Grok ${config.model}: ${lastError}`);
+                    lastError = errData?.error?.message || `Grok/Groq HTTP ${res.status}`;
+                    allErrors.push(`${isGroq ? 'Groq' : 'Grok'} ${modelToUse}: ${lastError}`);
 
-                    console.warn(`[Grok Fallback] Error: ${lastError}. Switching to next API key/model...`);
-                    if (res.status === 429 || res.status === 401 || res.status === 403 || res.status === 400) {
-                        currentConfigIndex = (currentConfigIndex + 1) % MODEL_CONFIGS.length;
+                    console.warn(`[Grok/Groq Fallback] Error: ${lastError}. Switching to next API key/model...`);
+                    if ([429, 401, 403, 400, 404].includes(res.status)) {
                         break; // Move to next config immediately for rate limits / bad keys
                     }
 
@@ -112,6 +123,7 @@ async function callWithRetry(prompt, retries = 2, systemMsg = 'You are an API th
 
                     if (res.ok) {
                         const data = await res.json();
+                        currentConfigIndex = indexToUse; // Save successful config index
                         return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
                     }
 
@@ -121,14 +133,13 @@ async function callWithRetry(prompt, retries = 2, systemMsg = 'You are an API th
                     allErrors.push(`Gemini ${config.model}: ${lastError}`);
 
                     console.warn(`[Gemini Fallback] Error: ${lastError}. Switching to next API key/model...`);
-                    if (res.status === 429 || res.status === 400 || res.status === 403 || res.status === 404 || res.status === 500) {
-                        currentConfigIndex = (currentConfigIndex + 1) % MODEL_CONFIGS.length;
+                    if ([429, 401, 403, 400, 404, 500].includes(res.status)) {
                         break; // Move to next config immediately for rate limits / bad keys
                     }
                 }
             } catch (err) {
                 lastError = err.message;
-                allErrors.push(`Network ${config.provider} ${config.model}: ${lastError}`);
+                allErrors.push(`Network ${config.provider} ${config.model || ''}: ${lastError}`);
                 console.warn(`[Network Fallback] ${config.provider} failed: ${lastError}`);
                 break; // Skip to next config on network issues
             }
