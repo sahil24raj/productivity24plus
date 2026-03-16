@@ -23,7 +23,8 @@ const MODEL_CONFIGS = [];
 
 // Push Gemini configurations first (Highest Priority as per user request)
 GEMINI_KEYS.forEach(key => {
-    ['gemini-1.5-flash-8b'].forEach(model => {
+    // We try flash first (fast/cheap), then pro (powerful)
+    ['gemini-1.5-flash', 'gemini-1.5-flash-latest', 'gemini-1.5-pro', 'gemini-pro'].forEach(model => {
         MODEL_CONFIGS.push({ provider: 'gemini', key, model });
     });
 });
@@ -31,9 +32,16 @@ GEMINI_KEYS.forEach(key => {
 
 // Push Grok configurations next (Fallback)
 GROK_KEYS.forEach(key => {
-    ['grok-2-latest'].forEach(model => {
-        MODEL_CONFIGS.push({ provider: 'grok', key, model });
-    });
+    // If it's a Groq key (gsk_), try Llama 3.1 models
+    if (key.startsWith('gsk_')) {
+        ['llama-3.1-8b-instant', 'llama-3.1-70b-versatile', 'mixtral-8x7b-32768'].forEach(model => {
+            MODEL_CONFIGS.push({ provider: 'grok', key, model });
+        });
+    } else {
+        ['grok-2-latest', 'grok-beta'].forEach(model => {
+            MODEL_CONFIGS.push({ provider: 'grok', key, model });
+        });
+    }
 });
 
 let currentConfigIndex = 0;
@@ -43,7 +51,7 @@ const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
  * Try calling AI APIs with automatic provider/model fallback.
  * Cycles from Grok -> Gemini transparently on quota errors.
  */
-async function callWithRetry(prompt, retries = 2, systemMsg = 'You are an API that returns ONLY raw valid JSON text without markdown formatting or code blocks. Never wrap output in ```json or ```.') {
+async function callWithRetry(prompt, retries = 2, systemMsg = 'You are an API that returns ONLY raw valid JSON text without markdown formatting or code blocks. Never wrap output in ```json or ```.', expectJson = true) {
     if (MODEL_CONFIGS.length === 0) {
         throw new Error("No API keys configured on the server.");
     }
@@ -70,7 +78,7 @@ async function callWithRetry(prompt, retries = 2, systemMsg = 'You are an API th
 
                     const isGroq = config.key.startsWith('gsk_');
                     const endpoint = isGroq ? 'https://api.groq.com/openai/v1/chat/completions' : 'https://api.x.ai/v1/chat/completions';
-                    const modelToUse = isGroq ? 'llama-3.1-8b-instant' : config.model;
+                    const modelToUse = config.model;
 
                     const payload = {
                         messages: messages,
@@ -78,7 +86,7 @@ async function callWithRetry(prompt, retries = 2, systemMsg = 'You are an API th
                         temperature: 0.7,
                     };
                     
-                    if (isGroq) {
+                    if (isGroq && expectJson) {
                         payload.response_format = { type: "json_object" };
                     }
 
@@ -154,7 +162,7 @@ async function callWithRetry(prompt, retries = 2, systemMsg = 'You are an API th
  * Send a prompt to Gemini and get a text response.
  */
 export async function askGemini(prompt) {
-    return await callWithRetry(prompt);
+    return await callWithRetry(prompt, 2, null, false);
 }
 
 function extractJSON(text) {
@@ -549,9 +557,9 @@ export async function getCoachResponse(history, query, skillAnalysis) {
 
     try {
         const systemPrompt = "You are a world-class AI Career Coach.";
-        return await callWithRetry(prompt, 2, systemPrompt);
+        return await callWithRetry(prompt, 2, systemPrompt, false);
     } catch (e) {
-        return "I am currently taking a quick break to process other requests! My servers are a bit busy right now. Please try asking again in about a minute!";
+        throw e;
     }
 }
 
