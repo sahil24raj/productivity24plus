@@ -11,9 +11,8 @@ import { setAiCache } from '@/lib/firestore';
 export default function AICoach() {
     const { user } = useAuth();
     const { skillAnalysis, aiCache, refreshAiCache } = useData();
-    const [messages, setMessages] = useState([
-        { role: 'assistant', content: "Hello! I am your AI Coach. I'm here to help you navigate the 2025-2026 AI era. I can help you with career growth, technical deep-dives, or just figuring out what to learn next. What's on your mind today?" }
-    ]);
+    const initialGreeting = { role: 'assistant', content: "Hello! I am your AI Coach. I'm here to help you navigate the 2025-2026 AI era. I can help you with career growth, technical deep-dives, or just figuring out what to learn next. What's on your mind today?" };
+    const [messages, setMessages] = useState([initialGreeting]);
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
 
@@ -27,9 +26,22 @@ export default function AICoach() {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     };
 
+    // Load Chat History from Cache on Mount
+    useEffect(() => {
+        if (aiCache?.coachHistory && aiCache.coachHistory.length > 0) {
+            setMessages(aiCache.coachHistory);
+        }
+    }, [aiCache]);
+
+    // Save Chat History whenever it changes
     useEffect(() => {
         scrollToBottom();
-    }, [messages]);
+        // Don't save if it's just the initial greeting to avoid unnecessary writes on empty load
+        if (user && messages.length > 1) {
+            const todayStr = new Date().toISOString().split('T')[0];
+            setAiCache(user.uid, todayStr, 'coachHistory', messages).catch(err => console.error("Error saving chat history:", err));
+        }
+    }, [messages, user]);
 
     // Fetch and cache Industry Data
     const fetchIndustryData = async () => {
@@ -101,6 +113,19 @@ export default function AICoach() {
                                 </span>
                             </div>
                         </div>
+                        <button
+                            onClick={async () => {
+                                if (!user) return;
+                                setMessages([initialGreeting]);
+                                const todayStr = new Date().toISOString().split('T')[0];
+                                await setAiCache(user.uid, todayStr, 'coachHistory', [initialGreeting]);
+                                await refreshAiCache();
+                            }}
+                            className="text-xs bg-surface border border-surface-border hover:bg-surface-hover text-gray-300 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
+                            title="Start a new conversation"
+                        >
+                            <FiZap className="w-3 h-3 text-brand-400" /> New Chat
+                        </button>
                     </div>
 
                     <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-hide">
